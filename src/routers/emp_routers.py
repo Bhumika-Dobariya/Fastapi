@@ -5,7 +5,8 @@ from src.schemas.emp_schemas import AllEmployee,emppass,update
 from src.models.emp_models import Employee
 import uuid
 from src.utils.token import get_token,decode_token_user_id,decode_token_uname,decode_token_password,logging_token
-
+from typing import Optional
+from logs.log_config import logger
 
 
 pwd_context = CryptContext(schemes=["bcrypt"],deprecated = "auto")
@@ -21,6 +22,9 @@ db = Sessionlocal()
 
 @employee.post("/create_emp",response_model=AllEmployee)
 def create_employee(emp :AllEmployee):
+    
+    logger.info("employee is creating ")
+    
     new_emp = Employee(
     id = str(uuid.uuid4()),
     emp_name  = emp.emp_name,
@@ -30,8 +34,16 @@ def create_employee(emp :AllEmployee):
     u_name = emp.u_name,
     password  = pwd_context.hash(emp.password)
     )
+    
+    logger.success("employee is created")
+    
+    logger.info("employee is adding to database...")
     db.add(new_emp)
+    logger.info("employee loaded successfuly")
+    
     db.commit()
+    logger.success("employee has been saved successfully")
+
     return new_emp
 
 
@@ -39,18 +51,32 @@ def create_employee(emp :AllEmployee):
 
 @employee.get("/encode_token_id")
 def encode_token_id(id:str):
+    logger.info(f"access token generateing for id:{id}")
     access_token = get_token(id)
+    logger.success(f"access token generated for id:{id}")
+    
+    logger.success("access token return successfuly")
     return access_token
 
 
 #__________get by token_______________
 
+
+
 @employee.get("/get_info_by_token",response_model=AllEmployee)
 def get_id_info_by_token(token:str):
+    logger.info("Accessing employee information using token")
     emp_id = decode_token_user_id(token)
+    logger.info ("Finding employee information in the database")
     db_emp = db.query(Employee).filter(Employee.id == emp_id,Employee.is_active==True).first()
+    
+    logger.success("retrived employeed information successfuly")
+    
     if db_emp is None:
-        raise HTTPException(status_code=404,detail= "emp not found")
+        logger.error ("employee not found in database")
+        raise HTTPException(status_code=404,detail= "employee not found")
+    
+    logger.info("Returning employee information")
     return db_emp 
 
 
@@ -71,7 +97,7 @@ def get_id_info_by_token(token=Header(...)):
     emp_id = decode_token_user_id(token)
     db_emp = db.query(Employee).filter(Employee.id == emp_id,Employee.is_active==True).first()
     if db_emp is None:
-        raise HTTPException(status_code=404,detail= "emp not found")
+        raise HTTPException(status_code=404,detail= "employee not found")
     return db_emp
 
 
@@ -80,9 +106,12 @@ def get_id_info_by_token(token=Header(...)):
 
 @employee.get("/get_all",response_model=list[AllEmployee])
 def get_all_emp():
+    logger.info("finding all employee from database")
     db_emp = db.query(Employee).all()
     if db_emp is None:
-        raise HTTPException(status_code=404,detail = "emp not found")
+        logger.error("employee not found in database")
+        raise HTTPException(status_code=404,detail = "employee not found")
+    logger.info("Returning employee information")
     return db_emp
 
 
@@ -92,19 +121,30 @@ def get_all_emp():
 
 @employee.put("/update_emp_by_token",response_model=AllEmployee)
 def update_emp(token:str, emp : AllEmployee):
+    logger.info("accessing employee information using token")
     emp_id = decode_token_user_id(token)
+    
+    logger.info("finding employee id from database")
     db_emp = db.query(Employee).filter(Employee.id == emp_id,Employee.is_active == True).first()
+    logger.info("retriving employee information from database")
+    
     if db_emp is None:
+        logger.error("employee not found in database")
         raise HTTPException(status_code=404,detail="emp not found")
     
+    logger.info("starting modification of employee details")
     db_emp.emp_name  = emp.emp_name,
     db_emp.email = emp.email,
     db_emp.phone_no =emp.phone_no,
     db_emp.position = emp.position,
     db_emp.u_name = emp.u_name,
     db_emp.password  = pwd_context.hash(emp.password)
+    logger.info("All employee details are modified")
     
     db.commit()
+    
+    logger.info("Returning updated employee information")
+
     return db_emp
 
 
@@ -141,35 +181,10 @@ def update_emp_patch(emp:update,token = Header(...)):
 
 #patch request
 
-@employee.patch("/update_through_patch",response_model=update)
-def update_emp_patch(token:str,emp:update):
-        emp_id = decode_token_user_id(token)
-        db_emp = db.query(Employee).filter(Employee.id == emp_id,Employee.is_active == True).first()
-        if db_emp is None:
-           raise HTTPException(status_code=404,detail="emp not found")
-       
-        if emp.phone_no:
-            db_emp.phone_no = emp.phone_no
-        if emp.position:
-            db_emp.position = emp.position 
-            
-        db.commit()
-        return db_emp
+#.......
+
+
  
- #put
- 
-@employee.put("/update_through_put",response_model=update)
-def update_emp_patch(token:str,emp:update):
-        emp_id = decode_token_user_id(token)
-        db_emp = db.query(Employee).filter(Employee.id == emp_id,Employee.is_active == True).first()
-        if db_emp is None:
-           raise HTTPException(status_code=404,detail="emp not found")
-       
-        db_emp.phone_no =emp.phone_no,
-        db_emp.position = emp.position,
-        
-        db.commit()
-        return db_emp          
 
 
 
@@ -179,16 +194,24 @@ def update_emp_patch(token:str,emp:update):
 
 @employee.delete("/delete_emp_by_token")
 def delete_emp(token:str):
+    logger.info("accessing employee information using token")
     emp_id = decode_token_user_id(token)
+    
+    logger.info("finding employee id from database")
     db_emp = db.query(Employee).filter(Employee.id ==emp_id , Employee.is_active ==True).first()
+    logger.info("retriving employee information from database")
+    
     if db_emp is None:
+        logger.error("employee not found in database")
         raise HTTPException(status_code=404,detail="emp not found")
+    
+    logger.info("deleting employee")
     
     db_emp.is_delete = True
     db_emp.is_active = False
    
-    
     db.commit()
+    logger.info("employee deleted successfully")
     return {"emp delete successfully"}
 
 
@@ -231,11 +254,18 @@ def delete_emp(token = Header(...)):
 
 @employee.put("/reregister")
 def toggel_emp(token:str,empn:emppass):
+    logger.info("accessing employee information using token")
     emp_id = decode_token_user_id(token)
+    
+    logger.info("finding employee details from database")
     db_emp = db.query(Employee).filter(Employee.id == emp_id).first()
+    logger.info("retriving employee information from database")
+    
     if db_emp is None:
+        logger.error("employee not found")
         raise HTTPException(status_code=404,detail="emp not found")
     
+    logger.info("re-register employee")
     if db_emp.is_delete is True and db_emp.is_active is False:
         if pwd_context.verify(empn.password,db_emp.password):
            
@@ -243,6 +273,8 @@ def toggel_emp(token:str,empn:emppass):
             db_emp.is_active = True
             
             db.commit()
+            logger.info("set is_delete to False and is_active to True")
+            logger.info("re-register complated")
             return True
     raise HTTPException(status_code=404,detail= "invalid crediantial")
 
@@ -284,6 +316,7 @@ def toggel_emp(empn:emppass,token = Header(...)):
             
             db.commit()
             return True
+    logger.warning("Invalid credentials")
     raise HTTPException(status_code=404,detail= "invalid crediantial")
 
 
@@ -295,14 +328,23 @@ def toggel_emp(empn:emppass,token = Header(...)):
 @employee.put("/forget_Password_by_token")
 
 def forget_password_token(token: str ,user_newpass : str):
+    logger.info("accessing employee details from database")
     emp_id = decode_token_user_id(token)
+    
+    logger.info("finding employee id from database")
     db_emp = db.query(Employee).filter(Employee.id == emp_id ).first()
+    logger.info("retriving employee details from database")
+    
     if db_emp is  None:
+        logger.error("employee not found")
         raise HTTPException(status_code=404,detail="emp not found")
     
+    logger.info("verifying password")
     db_emp.password = pwd_context.hash(user_newpass)
+    logger.success("password verified successfully ")
     
     db.commit()
+    logger.success("Password updated successfully")
     return "Forget Password successfully"
 
 
@@ -345,14 +387,24 @@ def forget_password_token(user_newpass : str, token =Header(...)):
 
 @employee.put("/reset_password_by_token")
 def reset_password_token(token:str,oldpass:str,newpass:str):
+    
+    logger.info("accessing employee details from database")
     emp_id = decode_token_user_id(token)
+    logger.info("finding employee information from database")
     db_emp = db.query(Employee).filter(Employee.id == emp_id).first()
+    logger.info("retrivinf employee deatails from database")
+    
     if db_emp is None:
+        logger.error("employee not found")
         raise HTTPException(status_code=404,detail="emp not found")
     
+    logger .info("verifying password")
     if pwd_context.verify(oldpass,db_emp.password):
         db_emp.password = pwd_context.hash(newpass)
+        logger.success("password verified successfully ")
+
         db.commit()
+        logger.success("password reset successfully")
         return {"password reset successfully"}
     else:
         return {"password not matched"}
@@ -397,8 +449,11 @@ def reset_password_token(oldpass:str,newpass:str, token = Header(...)):
 
 
 @employee.get("/encode_logging")
+
 def token_logging(uname:str,password:str):
+    logger.info("accessing username and password from database")
     access_token = logging_token(uname,password)
+    logger.info("token generated successfully")
     return access_token
 
 
@@ -408,15 +463,25 @@ def token_logging(uname:str,password:str):
 
 @employee.get("/logging_by_token")
 def logging(token:str):
+    logger.info("accessing token from database")
     uname = decode_token_uname(token)
     password = decode_token_password(token)
+    
+    logger.info("finding employee name from database")
     db_emp = db.query(Employee).filter(Employee.u_name==uname,Employee.is_active ==True).first()
+    logger.info("retriving employee info from database")
     
     if db_emp is None:
+        
+        logger.error("employee not found")
         raise HTTPException(status_code=404,detail="emp not found")
+    
     if not pwd_context.verify(password,db_emp.password):
+        
+        logger.error("password verification is failed..enter correct password")
         raise HTTPException(status_code=404,detail= "incorrect password")
     
+    logger.info("logging successfully")
     return "loging successfully"
 
 

@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 
+
 class AllEmployee(BaseModel):
     emp_name :str
     email : str
@@ -7,6 +8,9 @@ class AllEmployee(BaseModel):
     position :str
     u_name :str
     password :str
+    
+    
+  
     
 class emppass(BaseModel):
     password :str
