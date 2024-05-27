@@ -4,7 +4,7 @@ from passlib.context import CryptContext
 from src.schemas.emp_schemas import AllEmployee,emppass,update
 from src.models.emp_models import Employee
 import uuid
-from src.utilis.token import get_token,decode_token_user_id,decode_token_uname,decode_token_password,logging_token
+from src.utils.token import get_token,decode_token_user_id,decode_token_uname,decode_token_password,logging_token
 
 
 
