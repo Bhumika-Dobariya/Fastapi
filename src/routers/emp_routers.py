@@ -7,7 +7,7 @@ import uuid
 from src.utils.token import get_token,decode_token_user_id,decode_token_uname,decode_token_password,logging_token
 from typing import Optional
 from logs.log_config import logger
-
+from src.schemas.emp_schemas import PartialEmployee
 
 pwd_context = CryptContext(schemes=["bcrypt"],deprecated = "auto")
 
@@ -47,6 +47,10 @@ def create_employee(emp :AllEmployee):
     return new_emp
 
 
+from fastapi.security import OAuth2PasswordBearer
+oauth_scheme = OAuth2PasswordBearer(tokenUrl="encode_token_id")
+
+
 #___________encode_id_________________
 
 @employee.get("/encode_token_id")
@@ -64,7 +68,7 @@ def encode_token_id(id:str):
 
 
 @employee.get("/get_info_by_token",response_model=AllEmployee)
-def get_id_info_by_token(token:str):
+def get_id_info_by_token(token = Depends(oauth_scheme)):
     logger.info("Accessing employee information using token")
     emp_id = decode_token_user_id(token)
     logger.info ("Finding employee information in the database")
@@ -120,7 +124,7 @@ def get_all_emp():
 
 
 @employee.put("/update_emp_by_token",response_model=AllEmployee)
-def update_emp(token:str, emp : AllEmployee):
+def update_emp(emp : AllEmployee,token = Depends(oauth_scheme)):
     logger.info("accessing employee information using token")
     emp_id = decode_token_user_id(token)
     
@@ -166,7 +170,7 @@ def update_emp_patch(emp:update,emp_id = Depends(decode_token_user_id)):
 #__ header
 
 @employee.put("/update_through_header",response_model=update)
-def update_emp_patch(emp:update,token = Header(...)):
+def update_emp(emp:update,token = Header(...)):
         emp_id = decode_token_user_id(token)
         db_emp = db.query(Employee).filter(Employee.id == emp_id,Employee.is_active == True).first()
         if db_emp is None:
@@ -181,8 +185,46 @@ def update_emp_patch(emp:update,token = Header(...)):
 
 #patch request
 
-#.......
+@employee.patch("/patch_request",response_model=AllEmployee)
+def update_emp_id_patch(emp_id:str,emp:PartialEmployee):
+    db_emp = db.query(Employee).filter(Employee.id ==emp_id,Employee.is_active == True).first()
+    
+    if db_emp is None:
+        raise HTTPException(status_code=404,detail="employee not found")
+    
+    for key,value in emp.dict().items():
+        if value is not None:
+            setattr(db_emp,key,value)
+    db.commit()
+    return db_emp
+        
 
+
+#patch request using token
+
+@employee.patch("/update_emp_by_token_patch", response_model=AllEmployee)
+def update_emp_patch(token: str, emp: PartialEmployee):
+    logger.info("accessing employee information using token")
+    emp_id = decode_token_user_id(token)
+
+    logger.info("finding employee id from database")
+    db_emp = db.query(Employee).filter(Employee.id == emp_id, Employee.is_active == True).first()
+    logger.info("retrieving employee information from database")
+
+    if db_emp is None:
+        logger.error("employee not found in database")
+        raise HTTPException(status_code=404, detail="emp not found")
+
+    logger.info("starting modification of employee details")
+    for field_name, value in emp.dict().items():
+        if value is not None:
+            setattr(db_emp, field_name, value)
+            logger.info(f"Updated {field_name}")
+
+    db.commit()
+    
+    logger.info("Returning updated employee information")
+    return db_emp
 
  
 
@@ -193,7 +235,7 @@ def update_emp_patch(emp:update,token = Header(...)):
 
 
 @employee.delete("/delete_emp_by_token")
-def delete_emp(token:str):
+def delete_emp(token =Depends(oauth_scheme)):
     logger.info("accessing employee information using token")
     emp_id = decode_token_user_id(token)
     
@@ -327,7 +369,7 @@ def toggel_emp(empn:emppass,token = Header(...)):
 
 @employee.put("/forget_Password_by_token")
 
-def forget_password_token(token: str ,user_newpass : str):
+def forget_password_token(user_newpass : str,token = Depends(oauth_scheme) ):
     logger.info("accessing employee details from database")
     emp_id = decode_token_user_id(token)
     
